@@ -1,0 +1,319 @@
+module maija::tekoaly;
+
+import maija::maija;
+
+/* Pelaaja */
+class @Pelaaja {
+	field @Kortti[] kasi;
+	field @String nimi;
+	
+	@Pelaaja init(@String nimi) [
+		this::kasi = new @Kortti[];
+		this::nimi = nimi;
+		return this;
+	]
+	
+	@Void otaKortti(@Kortti k) [
+		this::kasi.add(k);
+	]
+	
+	@Kortti[] ajaKortteja(@Maa valtti, @Integer m) abstract;
+	@Kortti[] puolusta(@Kortti[] k, @Maa valtti) abstract;
+};
+
+extern scanf;
+
+/* Tekoäly ihmispelaajalle: Ei mieti vaan kysyy ihmiseltä */
+class @Ihminen : @Pelaaja {
+	
+	/* Uusi kortti pakasta */
+	@Void otaKortti(@Kortti k) [
+		this::kasi.add(k);
+		printf("Sait pakasta kortin %s.\n", @String k);
+	]
+	
+	/* Korttien ajaminen */
+	@Kortti[] ajaKortteja(@Maa valtti, @Integer m) [
+	
+		/* Järjestä käden kortit */
+		this::kasi.bsort();
+		
+		/* Kuinka monta korttia saa ajaa */
+		if (m < 5)
+			printf("Saat ajaa %i korttia.\n", m);
+		else 	printf("Saat ajaa 5 korttia.\n");
+		
+		/* Tulosta käden kortit */
+		tulostaKasi(this::kasi, #(k) true);
+		printf("| Lista ajettavista korteista (numerot eroteltuina pilkuilla):\n| ");
+		
+		/* Lue syöte */
+		var lista = new @Integer[];
+		do {
+			var j = 0;
+			scanf("%i", ref(j));
+			lista.add(j-1);
+			
+			var c = 0;
+			do scanf("%c", ref(c)); while (c == ' ' || c == '	');
+			if (c == '\n') break;
+		} while (true);
+		
+		lista.sort();
+		
+		var kortit = new @Kortti[];
+		
+		/* Lisää kortit ajettaviin kortteihin */
+		lista iterate (#(i, s) [
+			var kortti = $this::kasi.remove(s-i);
+			$kortit.add(kortti);
+			i = i + 1;
+			
+			return CONTINUE();
+		]);
+		
+		/* Tulosta merkki */
+		printf(varikoodi("91;1")+"=====\n"+varikoodi("0"));
+		
+		return kortit;
+	]
+	
+	@Kortti[] puolusta(@Kortti[] ajetut, @Maa valtti) [
+		
+		/* Järjestä käden kortit */
+		this::kasi.bsort();
+		ajetut.bsort();
+		
+		var kaadetut = new @Kortti[];
+		var nostetut = new @Kortti[];
+		
+		tulostaKasi(ajetut, #(k) false);
+		
+		/* Käy läpi ajetut kortit */
+		ajetut.forEach(#(a) [
+			
+			/*printf("|\n");*/
+			
+			nonlocal valtti;
+			
+			/* Jos korttia ei voi kaataa, nosta se automaattisesti */
+			if (a == PATA()*12 || a == $valtti*1) {
+				$nostetut.add(a);
+				printf("| %s nostettu.\n", @String a);
+				return CONTINUE();
+			}
+			
+			/* Tulosta käden kortit */
+			
+			tulostaKasi(this::kasi, #(@Kortti k) ((k::koko > $a::koko && k::maa == $a::maa) ||
+					(k::maa == $valtti && $a::maa != $valtti)) &&
+					k != PATA()*12);
+			
+			var lippu = false;
+			
+			/* Kysy kunnes laillinen siirto */
+			do {
+				lippu = false;
+				
+				printf("| Kortti, jolla %s kaadetaan (555 jos nostetaan 556 jos kaikki nostetaan):\n| ", @String a);
+				
+				var j = 0;
+				scanf("%i", ref(j));
+				j = j - 1;
+				
+				/* Nosta kortti */
+				if (j == 555-1) $nostetut.add(a);
+				
+				/* Nosta kaikki kortit */
+				else if (j == 556-1) {
+					set($nostetut::list, 0, 0);
+					$nostetut.addAll($ajetut);
+					return BREAK();
+				}
+				
+				/* Kaada kortti */
+				else {
+					if ((($this::kasi[j]::koko > a::koko && $this::kasi[j]::maa == a::maa) ||
+						($this::kasi[j]::maa == valtti && a::maa != valtti)) &&
+						$this::kasi[j] !=  PATA()*12) {
+						$this::kasi.remove(j);
+						$kaadetut.add(a);
+					} else {
+						laiton("Kaatavan kortin tulee olla samaa maata ja suurempi verrattuna kaadettavaan");
+						lippu = true;
+					}
+				}
+			} while (lippu);
+		]);
+		this::kasi.addAll(nostetut);
+		
+		printf(varikoodi("91;1")+"=====\n"+varikoodi("0"));
+		return kaadetut;
+	]
+};
+
+/* SatunnaisPelaaja: Yksinkertainen tekoäly */
+class @SatunnaisPelaaja : @Pelaaja {
+	@Kortti[] ajaKortteja(@Maa valtti, @Integer maksimi) [
+		var kortit = new @Kortti[];
+		
+		/* Ajettava maa */
+		var maa = this::kasi[0]::maa;
+		
+		/* Etsi maa joka ei ole valttia */
+		if (maa == valtti) for (var i = 1; i < this::kasi::size; i=i+1) {
+			if (this::kasi[i]::maa != valtti) maa = this::kasi[i]::maa;
+		}
+		
+		/* Aja kaikki kortit samaa maata */
+		for (var i = 0; i < this::kasi::size; i=i+1) {
+			var k = this::kasi[i];
+			if (k::maa == maa && kortit::size < 5 && kortit::size < maksimi) {
+				kortit.add(k);
+				this::kasi.remove(i);
+				i = i -1;
+			}
+		}
+		return kortit;
+	]
+	
+	@Kortti[] puolusta(@Kortti[] ajetut, @Maa valtti) [
+		var kaadetut = new @Kortti[];
+		var nostetut = new @Kortti[];
+		ajetut.forEach(#(a) [
+			nonlocal valtti, nostetut, kaadetut;
+			var _this = $this;
+			
+			if (a == PATA()*12 || a == valtti*1) {
+				nostetut.add(a);
+				return CONTINUE();
+			}
+			
+			/* Kokeile kaataa ei-valteilla */
+			for (var i = 0; i < $this::kasi::size; i=i+1) {
+				var k = $this::kasi[i];
+				if (((k::koko > a::koko && k::maa == a::maa) &&
+					k::maa != valtti) &&
+						k != PATA()*12) {
+					
+					printf("| Pelaaja kaatoi kortin %s kortilla %s.\n", @String a, @String k);
+					
+					$this::kasi.remove(i);
+					$kaadetut.add(a);
+					return CONTINUE();
+				}
+			}
+			
+			/* Kokeile kaataa valteilla */
+			for (var i = 0; i < $this::kasi::size; i=i+1) {
+				var k = $this::kasi[i];
+				if (k::maa == valtti && a::maa != valtti) {
+					
+					printf("| Pelaaja kaatoi kortin %s kortilla %s.\n", @String a, @String k);
+					
+					$this::kasi.remove(i);
+					$kaadetut.add(a);
+					return CONTINUE();
+				}
+			}
+			
+			nostetut.add(a);
+		]);
+		this::kasi.addAll(nostetut);
+		return kaadetut;
+	]
+};
+
+/* TekoPelaaja: Tekoälykandidaatti nro. 1 */
+class @TekoPelaaja : @Pelaaja {
+	
+	@Kortti[] ajaKortteja(@Maa valtti, @Integer maksimi) [
+		var kortit = new @Kortti[];
+		
+		/* Ajettava maa */
+		var maa = this::kasi[0]::maa;
+		
+		/* Etsi maa joka ei ole valttia */
+		if (maa == valtti) for (var i = 1; i < this::kasi::size; i=i+1) {
+			if (this::kasi[i]::maa != valtti) maa = this::kasi[i]::maa;
+		}
+		
+		/* Aja kaikki kortit samaa maata */
+		for (var i = 0; i < this::kasi::size; i=i+1) {
+			var k = this::kasi[i];
+			if (k::maa == maa && kortit::size < 5 && kortit::size < maksimi) {
+				kortit.add(k);
+				this::kasi.remove(i);
+				i = i - 1;
+			}
+		}
+		return kortit;
+	]
+	
+	@Kortti[] puolusta(@Kortti[] ajetut, @Maa valtti) [
+		this::kasi.bsort();
+		
+		var kaadetut = new @Kortti[];
+		var nostetut = new @Kortti[];
+		var kaatajat = new @Kortti[];
+		
+		/* Valttikaytettu - tosi jos kaatamiseen tarvitsee valttia */
+		var valttika = false;
+		
+		/* Käy läpi ajetut kortit */
+		ajetut.forEach(#(a) [
+			nonlocal valtti, nostetut, kaadetut, kaatajat;
+			var _this = $this;
+			
+			if (a == PATA()*12 || a == valtti*1) {
+				nostetut.add(a);
+				return CONTINUE();
+			}
+			
+			/* Kokeile kaataa ei-valteilla */
+			for (var i = 0; i < $this::kasi::size; i=i+1) {
+				var k = $this::kasi[i];
+				if (((k::koko > a::koko && k::maa == a::maa) &&
+					k::maa != valtti) &&
+						k != PATA()*12) {
+					
+					/* Kaada kortti */
+					kaatajat.add($this::kasi.remove(i));
+					kaadetut.add(a);
+					return CONTINUE();
+				}
+			}
+			
+			/* Kokeile kaataa valteilla */
+			for (var i = 0; i < $this::kasi::size; i=i+1) {
+				var k = $this::kasi[i];
+				if (k::maa == valtti && a::maa != valtti && (k::koko < 12 || $this::kasi::size < 5)) {
+					
+					/* Kaada kortti */
+					kaatajat.add($this::kasi.remove(i));
+					kaadetut.add(a);
+					valttika = true;
+					return CONTINUE();
+				}
+			}
+			
+			nostetut.add(a);
+		]);
+		
+		/* Jos valtia käyttämällä ei kaadettu kaikkia kortteja, kumoa kaadot ja nosta kaikki*/
+		if (kaadetut::size != ajetut::size && valttika) {
+			nostetut.addAll(kaadetut);
+			this::kasi.addAll(kaatajat);
+			kaadetut = new @Kortti[];
+		} else {
+			/* Muulloin tulosta viestit kaadoista */
+			if (kaadetut::size > 0)
+				(0 .. kaadetut::size-1) iterate # (i,j) [
+					printf("| Pelaaja kaatoi kortin %s kortilla %s.\n", @String $kaadetut[i], @String $kaatajat[i]);
+				];
+		}
+		
+		this::kasi.addAll(nostetut);
+		return kaadetut;
+	]
+};

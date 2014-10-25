@@ -1,0 +1,230 @@
+module maija;
+
+import maija::maija;
+import maija::tekoaly;
+
+/* Tarkista että ajetut kortit eivät riko sääntöjä */
+@Boolean tarkistaAjetutKortit(@Kortti[] ajetut, @Integer maksimi) [
+	if (ajetut::size == 0) return laiton("Ajopakko!");
+	if (ajetut::size > 5 || ajetut::size > maksimi) return laiton("Kortteja ei saa ajaa enempää kuin seuraavalla pelaajalla on kädessä.\n");
+	var maa = ajetut[0]::maa;
+	
+	var lippu = false;
+	/*var lippu_ = ref(lippu);*/
+	
+	ajetut.forEach (#(a) [
+		if (a::maa != $maa) {
+			laiton("Ajettujen korttien tulee olla samaa maata!");
+			lippu = true;
+		}
+	]);
+	
+	return lippu;
+]
+
+/* Pelimoottori MAIN */
+
+@Void main [
+
+	/* Alusta pakka */
+	var raakapakka = 0 .. 13*4-1;
+	var pakka = new @Kortti[];
+	raakapakka each # (k) [ $pakka.add(@Kortti k); ];
+
+	randomize();
+	
+	/* Sekoita pakka */
+	1000 times [
+		$pakka.add($pakka.remove(rnd($pakka::size)));
+	];
+	
+	/* Tulosta pakan kortit */	
+	/*pakka.forEach (#(k) [
+		printf("%i: %s\n", k, @String k); 
+	]);*/
+	
+	/* Alusta pelaajat */
+	@Pelaaja[] pelaajat = new @Pelaaja[];
+	/*pelaajat.add(new @Ihminen.init("Iikka"));*/
+	pelaajat.add(new @TekoPelaaja.init("Teko1"));
+	doc pelaajat.add(new @SatunnaisPelaaja.init("Sat1"));
+	pelaajat.add(new @TekoPelaaja.init("Teko2"));
+	pelaajat.add(new @TekoPelaaja.init("Teko3"));
+	pelaajat.add(new @TekoPelaaja.init("Teko4"));
+	/*pelaajat.add(new @TekoPelaaja.init("Teko5"));*/
+	
+	/* Jaa pelaajille kortit */
+	pelaajat each # (p) [
+		nonlocal pakka;
+		3 times [ $p.otaKortti($pakka.remove(0)); ];
+	];
+	pelaajat each # (p) [
+		nonlocal pakka;
+		2 times [ $p.otaKortti($pakka.remove(0)); ];
+	];
+	
+	huomio("Peli alkaa.");
+	
+	var eka = @Kortti[] null;
+	
+	/* Silmukka pyörii kunnes siirto ei ole laiton */
+	do {
+		/* Palauta laittomasti ajetut kortit */
+		if (eka != null) pelaajat[0]::kasi.addAll(eka);
+		
+		/* Ensimmäinen ajo */
+		printf("Pelaaja %s ajaa.\n", pelaajat[0]::nimi);
+		eka = pelaajat[0].ajaKortteja(HERTTA(), 5);
+	
+		printf("Pelaaja %s ajoi kortit %s.\n", pelaajat[0]::nimi, eka::str);
+	
+	} while (tarkistaAjetutKortit(eka, 5));
+	
+	printf("** Valttikortin nosto\n");
+	
+	/* Nosta valttikortti */
+	@Maa valtti = null;
+	do {
+		var valttikortti = pakka.remove(0);
+		pakka.add(valttikortti);
+		
+		printf("  Nostettu %s.\n", @String valttikortti);
+		
+		valtti = valttikortti::maa;
+	} while (PATA() == valtti);
+	
+	printf("**\n");
+	huomio("" + valtti + " on valtti.");
+	
+	/* Jaa lisää kortteja */
+	while (pakka::size > 0 && pelaajat[0]::kasi::size < 5) {
+		pelaajat[0].otaKortti(pakka.remove(0));
+	}
+	
+	/* Pelaaja 1 puolustaa ekaa ajoa */
+	printf("Pelaaja %s puolustaa.\n", pelaajat[1]::nimi);
+	var kaadetut = pelaajat[1].puolusta(eka, valtti);
+	
+	var seuraava = 1;
+	
+	if (kaadetut::size != 0) {
+		printf("Pelaaja %s kaatoi kortit %s ja nosti %i korttia.\n", pelaajat[1]::nimi, kaadetut::str,
+				eka::size - kaadetut::size);
+	}
+	else {
+		printf("Pelaaja %s nosti kaikki kortit.\n", pelaajat[1]::nimi);
+	}
+	
+	if (kaadetut::size != eka::size) seuraava = iif(seuraava == pelaajat::size-1, 0, seuraava + 1);
+	
+	var poistuneet = new @Pelaaja[];
+	
+	do {
+		/* Jaa lisää kortteja */
+		while (pakka::size > 0 && pelaajat[seuraava]::kasi::size < 5) {
+			pelaajat[seuraava].otaKortti(pakka.remove(0));
+			if (pakka::size == 0) {
+				printf("\n");
+				huomio("PAKKA LOPPUI.");
+				printf("\n");
+			}
+		}
+		
+		if (seuraava == 0) {
+			printf("** Kierroksen jälkeen \n");
+		
+			pelaajat iterate # (i, p) [
+				printf("  Pelaajalla %s on %i korttia.\n", $pelaajat[i]::nimi, p::kasi::size);
+			];
+		}
+		
+		printf("**\n");
+		
+		/* Tarkista voitto */
+		if (pelaajat[seuraava]::kasi::size == 0) {
+			huomio("Pelaaja " + pelaajat[seuraava]::nimi + " poistui.");
+			poistuneet.add(pelaajat[seuraava]);
+			pelaajat.remove(seuraava);
+			seuraava = iif(seuraava >= pelaajat::size-1, 0, seuraava + 1);
+		}
+		
+		if (pelaajat::size <= 1) break;
+		
+		var ajetut = @Kortti[] null;
+		
+		/* Pyöri kunnes siirto ei ole laiton */
+		do {
+			/* Palauta laittomasti ajetut kortit */
+			if (ajetut != null) pelaajat[seuraava]::kasi.addAll(ajetut);
+			
+			/* Ajetut kortit */
+			printf("Pelaaja %s ajaa.\n", pelaajat[seuraava]::nimi);
+			ajetut = pelaajat[seuraava].ajaKortteja(valtti,
+				pelaajat[iif(seuraava == pelaajat::size-1, 0, seuraava + 1)]::kasi::size);
+		
+		} while (tarkistaAjetutKortit(ajetut, pelaajat[iif(seuraava == pelaajat::size-1, 0, seuraava + 1)]::kasi::size));
+		
+		printf("Pelaaja %s ajoi kortit %s.\n", pelaajat[seuraava]::nimi, ajetut::str);
+		
+		/* Jaa lisää kortteja */
+		while (pakka::size > 0 && pelaajat[seuraava]::kasi::size < 5) {
+			pelaajat[seuraava].otaKortti(pakka.remove(0));
+			if (pakka::size == 0) {
+				printf("\n");
+				huomio("PAKKA LOPPUI.");
+				printf("\n");
+			}
+		}
+		
+		/* Tarkista voitto */
+		if (pelaajat[seuraava]::kasi::size == 0) {
+			huomio("Pelaaja " + pelaajat[seuraava]::nimi + " poistui.");
+			poistuneet.add(pelaajat.remove(seuraava));
+			/*seuraava = iif(seuraava >= pelaajat::size-1, 0, seuraava + 1);*/
+		}
+		
+		if (pelaajat::size <= 1) break;
+		
+		seuraava = iif(seuraava >= pelaajat::size-1, 0, seuraava + 1);
+		
+		/* Kaadetut kortit */
+		printf("Pelaaja %s puolustaa.\n", pelaajat[seuraava]::nimi);
+		kaadetut = pelaajat[seuraava].puolusta(ajetut, valtti);
+		
+		if (kaadetut::size != 0) {
+			printf("Pelaaja %s kaatoi kortit %s ja nosti %i korttia.\n", pelaajat[seuraava]::nimi, kaadetut::str,
+				ajetut::size - kaadetut::size);
+		}
+		else {
+			printf("Pelaaja %s nosti kaikki kortit.\n", pelaajat[seuraava]::nimi);
+		}
+		
+		/* Jaa lisää kortteja */
+		while (pakka::size > 0 && pelaajat[0]::kasi::size < 5) {
+			pelaajat[0].otaKortti(pakka.remove(0));
+			if (pakka::size == 0) {
+				printf("\n");
+				huomio("PAKKA LOPPUI.");
+				printf("\n");
+			}
+		}
+		
+		if (kaadetut::size != ajetut::size) seuraava = iif(seuraava == pelaajat::size-1, 0, seuraava + 1);
+	} while (pelaajat::size > 0);
+	
+	huomio("Pelaaja " + pelaajat[0]::nimi + " hävisi.");
+	printf("Pelaajan %s kortit: %s.\n", pelaajat[0]::nimi, pelaajat[0]::kasi::bsort::str);
+	tulostaKasi(pelaajat[0]::kasi, #(k)false);
+	
+	
+	/* Näytä tulokset */
+	printf("** Pelin jälkeen\n");
+	
+	poistuneet iterate # (i,p) [
+		if (i == 0) printf("  Pelaaja %s voitti.\n", p::nimi);
+		else printf("  %i. oli %s.\n", i+1, p::nimi);
+	];
+	printf("  %i. ja hävinnyt oli %s.\n", poistuneet::size+1, pelaajat[0]::nimi);
+	
+	printf("**\n");
+]
