@@ -18,7 +18,7 @@ expect @Function<@Time, @Null> time;
 	return rand() % alue;
 ]
 
-/* Bash-värikoodi tulostukseen */
+/* ANSI-värikoodi tulostukseen */
 @String varikoodi(@String id) [
 	return "".appendch(0x1B)+"["+id+"m";
 ]
