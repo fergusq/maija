@@ -45,7 +45,7 @@ import maija::tekoaly;
 	
 	/* Alusta pelaajat */
 	@Pelaaja[] pelaajat = new @Pelaaja[];
-	/*pelaajat.add(new @Ihminen.init("Iikka"));*/
+	pelaajat.add(new @Ihminen.init("Iikka"));
 	pelaajat.add(new @TekoPelaaja.init("Teko1"));
 	doc pelaajat.add(new @SatunnaisPelaaja.init("Sat1"));
 	pelaajat.add(new @TekoPelaaja.init("Teko2"));

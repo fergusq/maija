@@ -138,7 +138,6 @@ interface @Kortti data @Integer {
 	
 	/* Tekstinä */
 	auto @String [
-		
 		return "" + this::vari + this::maa + " " + this::koko + varikoodi("0");
 	]
 	
@@ -152,9 +151,11 @@ interface @Kortti data @Integer {
 	]
 	
 	/* Korttien vertailuun */
-	@Boolean operator == (@Kortti k) alias equals;
+	@Boolean operator == (@Kortti k) [
+		return (@Integer this) == @Integer k;
+	]
 	@Boolean operator != (@Kortti k) [
-		return (@Integer this) != @Integer k;
+		return (this == k)::not;
 	]
 	
 	/* Korttien järjestämiseen */
